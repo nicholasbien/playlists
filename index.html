@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Spotify Playlist Generator</title>
+    <link rel="stylesheet" href="site.css">
+</head>
+<body>
+    <h1>Spotify Playlist Generator</h1>
+    <form onsubmit="getPlaylist()">
+        <label>Artist:</label>
+        <input id="artist">
+        <input type="submit">
+    </form>
+    <div>
+        <a id="link" target="_blank"></a>
+    </div>
+    <iframe id="player" width="250px" height="330px" frameborder="0" allowtransparency="true"></iframe>
+</body>
+<script>
+    function getPlaylist() {
+        event.preventDefault();
+        var artist = document.getElementById('artist').value;
+        var artistQuery = encodeURIComponent(artist);
+
+        var title = artist + ': recommended';
+
+        var request = new XMLHttpRequest();
+        request.open('GET', 'http://developer.echonest.com/api/v4/playlist/static?api_key=ABFI7P4WHSMYRUEJ4&artist=' + artistQuery + '&format=json&results=20&type=artist-radio&bucket=id:spotify&bucket=tracks');
+        request.addEventListener('load', function() {
+            var data = JSON.parse(request.responseText);
+            var songs = data.response.songs;
+            var spotifyIds = songs.map(function(song) {
+                var tracks = song.tracks;
+                if (tracks.length === 0) {
+                    return null;
+                } else {
+                    return tracks[0].foreign_id.substring(14);
+                }
+            });
+            var trackset = '';
+            spotifyIds.forEach(function(id, index) {
+                if (id) {
+                    trackset += id;
+                    if (index != this.length - 1) {
+                        trackset += ',';
+                    }
+                }
+            });
+
+            var player = document.getElementById('player');
+            player.src = 'https://embed.spotify.com/?uri=spotify:trackset:' + title + ':' + trackset;
+
+            var link = document.getElementById('link');
+            link.href = 'http://open.spotify.com/trackset/' + title + '/' + trackset;
+            link.innerHTML = 'Click to view in a new tab';
+        });
+        request.send();
+    }
+    
+</script>
+</html>
