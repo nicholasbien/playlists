@@ -2,7 +2,6 @@
 <html>
 <head>
     <title>Spotify Playlist Generator</title>
-    <link rel="stylesheet" href="site.css">
 </head>
 <body>
     <h1>Spotify Playlist Generator</h1>
@@ -12,123 +11,185 @@
         <input type="submit">
     </form>
     <p id="status"></p>
-    <div>
-        <a id="link" target="_blank"></a>
-    </div>
-    <iframe id="player" width="250px" height="330px" frameborder="0" allowtransparency="true"></iframe>
 </body>
 <script>
-    
-    function getPlaylist(access_token) {
-        getUsername(access_token);
-    }
-
-    function getUsername(access_token) {
-        var request = new XMLHttpRequest();
-        request.open('GET', 'https://api.spotify.com/v1/me');
-        request.setRequestHeader('Authorization', 'Bearer ' + access_token);
-        request.addEventListener('load', function() {
-            var response = JSON.parse(this.responseText);
-            createPlaylist(access_token, response.id);
-        });
-        request.send();
-    }
-
-    function createPlaylist(access_token, userId) {
-        var request = new XMLHttpRequest();
-        request.open('POST', 'https://api.spotify.com/v1/users/' + userId + '/playlists');
-        request.setRequestHeader('Authorization', 'Bearer ' + access_token);
-        request.setRequestHeader('Content-Type', 'application/json');
-        
-        request.addEventListener('load', function() {
-            var response = JSON.parse(this.responseText);
-            getSpotifyURIs(userId, response.id, access_token);
-        });
-        
-        var artistQuery = localStorage.getItem('artistQuery');
-        var body = JSON.stringify({
-            'name': artistQuery,
-            'public': false
-        });
-        request.send(body);
-        
-    }
-
-    function getSpotifyURIs(userId, playlistId, access_token) {
-        var artistQuery = localStorage.getItem('artistQuery');
-
-        var request = new XMLHttpRequest();
-        request.open('GET', 'http://developer.echonest.com/api/v4/playlist/static?api_key=ABFI7P4WHSMYRUEJ4&artist=' + artistQuery + '&format=json&results=20&type=artist-radio&bucket=id:spotify&bucket=tracks');
-        request.addEventListener('load', function() {
-            var response = JSON.parse(request.responseText);
-            var songs = response.response.songs;
-            var spotifyURIs = songs.map(function(song) {
-                var tracks = song.tracks;
-                if (tracks.length === 0) {
-                    return null;
-                } else {
-                    return tracks[0].foreign_id;
-                }
-            });
-            spotifyURIs = spotifyURIs.filter(function(uri) {
-                return uri !== null;
-            });
-            addTracks(userId, playlistId, spotifyURIs, access_token);
-        });
-        request.send();
-    }
-
-    
-
-    function addTracks(userId, playlistId, spotifyURIs, access_token) {
-        var request = new XMLHttpRequest();
-        request.open('POST', 'https://api.spotify.com/v1/users/' + userId + '/playlists/' + playlistId + '/tracks');
-        request.setRequestHeader('Authorization', 'Bearer ' + access_token);
-        request.setRequestHeader('Content-Type', 'application/json');
-        request.addEventListener('load', function() {
-            var status = document.getElementById('status');
-            status.innerHTML = 'Success! Your playlist has been added. ' + '<a href="https://open.spotify.com/user/' + userId + '/playlist/' + playlistId +'" target="_blank">View here<a>';
-        });
-        var body = JSON.stringify({
-            'uris': spotifyURIs
-        })
-        request.send(body);
-    }
-
-    (function() {
-        function getHashParams() {
-          var hashParams = {};
-          var e, r = /([^&;=]+)=?([^&;]*)/g,
-              q = window.location.hash.substring(1);
-          while ( e = r.exec(q)) {
-             hashParams[e[1]] = decodeURIComponent(e[2]);
-          }
-          return hashParams;
-        }
-
-        var params = getHashParams();
-
-        var access_token = params.access_token;
-        var state = params.state;
-        //var storedState = localStorage.getItem(stateKey);
-
-        if (access_token) {
-            var status = document.getElementById('status');
-            status.innerHTML = 'Creating your playlist...';
-            getPlaylist(access_token);
-        }
-            
-    })();
 
     function authorizeUser() {
         event.preventDefault();
 
         var artist = document.getElementById('artist').value;
-        var artistQuery = encodeURIComponent(artist);
-        localStorage.setItem('artistQuery', artistQuery);
+        localStorage.setItem('artist', artist);
 
-        window.location = 'https://accounts.spotify.com/authorize?client_id=999d4ee5cddc4a53aa942ac43799a5f8&response_type=token&scope=playlist-modify-private&redirect_uri=' + window.location.origin + '&show_dialog=true';
+        window.location = 'https://accounts.spotify.com/authorize?client_id=999d4ee5cddc4a53aa942ac43799a5f8&response_type=token&scope=playlist-modify-private&redirect_uri=' + encodeURIComponent(window.location.origin) + '&show_dialog=true';
     }
+
+    var SpotifyAPI = {};
+
+    SpotifyAPI.timeout = 10000;
+
+    SpotifyAPI.getUserId = function(accessToken, callback) {
+        var url = 'https://api.spotify.com/v1/me';
+        var xhr = new XMLHttpRequest();
+        xhr.ontimeout = function() {
+            callback('The request timed out. Please try again');
+        };
+        xhr.onload = function() {
+            if (xhr.status !== 200) {
+                callback(xhr.responseText);
+            } else {
+                var response = JSON.parse(this.responseText);
+                callback(null, response.id);
+            }
+        };
+        xhr.open('GET', url);
+        xhr.timeout = SpotifyAPI.timeout;
+        xhr.setRequestHeader('Authorization', 'Bearer ' + accessToken);
+        xhr.send();
+    }
+
+    SpotifyAPI.createPlaylist = function(accessToken, userId, playlistName, callback) {
+        var url = 'https://api.spotify.com/v1/users/' + userId + '/playlists';
+        var xhr = new XMLHttpRequest();
+        xhr.ontimeout = function() {
+            callback('The request timed out. Please try again');
+        };
+        xhr.onload = function() {
+            if (xhr.status !== 200 && xhr.status !== 201) {
+                callback(xhr.responseText);
+            } else {
+                var response = JSON.parse(this.responseText);
+                callback(null, response.id);
+            }
+        };
+        xhr.open('POST', url);
+        xhr.timeout = SpotifyAPI.timeout;
+        xhr.setRequestHeader('Authorization', 'Bearer ' + accessToken);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        var body = JSON.stringify({
+            'name': playlistName,
+            'public': false
+        });
+        xhr.send(body);
+    }
+
+    SpotifyAPI.addTracksToPlaylist = function(accessToken, userId, playlistId, spotifyURIs, callback) {
+        var xhr = new XMLHttpRequest();
+        var url = 'https://api.spotify.com/v1/users/' + userId + '/playlists/' + playlistId + '/tracks';
+        xhr.ontimeout = function() {
+            callback('The request timed out. Please try again');
+        };
+        xhr.onload = function() {
+            if (xhr.status !== 200 && xhr.status !== 201) {
+                return callback(xhr.responseText);
+            } else {
+                callback(null);
+            }
+        };
+        xhr.open('POST', url);
+        xhr.timeout = SpotifyAPI.timeout;
+        xhr.setRequestHeader('Authorization', 'Bearer ' + accessToken);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        var body = JSON.stringify({
+            'uris': spotifyURIs
+        });
+        xhr.send(body);
+    };
+
+    var EchoNestAPI = {};
+
+    EchoNestAPI.timeout = 10000;
+    
+    EchoNestAPI.getArtistRadio = function(artistQuery, numResults, callback) {
+        var url = 'http://developer.echonest.com/api/v4/playlist/static'
+            + '?api_key=ABFI7P4WHSMYRUEJ4'
+            + '&artist=' + artistQuery
+            + '&results=' + numResults
+            + '&type=artist-radio'
+            + '&bucket=id:spotify'
+            + '&bucket=tracks';
+        var xhr = new XMLHttpRequest();
+        xhr.ontimeout = function() {
+            callback('The request timed out. Please try again');
+        };
+        xhr.onload = function() {
+            if (xhr.status !== 200) {
+                return callback(xhr.responseText);
+            } else {
+                var response = JSON.parse(xhr.responseText);
+                if (response.response.status.code === 5) {
+                    callback('That artist could not be found. Please try again.');
+                } else {
+                    var songs = response.response.songs;
+                    var spotifyURIs = songs.map(function(song) {
+                        var tracks = song.tracks;
+                        if (tracks.length === 0) {
+                            return null;
+                        } else {
+                            return tracks[0].foreign_id;
+                        }
+                    });
+                    spotifyURIs = spotifyURIs.filter(function(uri) {
+                        return uri !== null;
+                    });
+                    callback(null, spotifyURIs);
+                }
+            }
+        };
+        xhr.open('GET', url);
+        xhr.timeout = EchoNestAPI.timeout;
+        xhr.send();
+    };
+    
+
+    (function() {
+        function getHashParams() {
+            var hashParams = {};
+            var e, r = /([^&;=]+)=?([^&;]*)/g,
+                q = window.location.hash.substring(1);
+            while ( e = r.exec(q)) {
+                hashParams[e[1]] = decodeURIComponent(e[2]);
+            }
+            return hashParams;
+        }
+
+        var params = getHashParams();
+
+        var accessToken = params.access_token;
+        //var state = params.state;
+        //var storedState = localStorage.getItem(stateKey);
+
+        if (accessToken) {
+            history.pushState(null, null, '/');
+
+            var status = document.getElementById('status');
+            status.innerHTML = 'Creating your playlist...';
+
+            var artist = localStorage.getItem('artist');
+            var artistQuery = encodeURIComponent(artist);
+            var playlistName = 'based on: ' + artist;
+
+            SpotifyAPI.getUserId(accessToken, function(error, userId) {
+                if (error) status.innerHTML = error;
+                    else EchoNestAPI.getArtistRadio(artistQuery, 20, function(error, spotifyURIs) {
+                    if (error) status.innerHTML = error;
+                    else SpotifyAPI.createPlaylist(accessToken, userId, playlistName, function(error, playlistId) {
+                        if (error) status.innerHTML = error;
+                        else SpotifyAPI.addTracksToPlaylist(accessToken, userId, playlistId, spotifyURIs, function(error) {
+                            if (error) status.innerHTML = error;
+                            else reportSuccess(userId, playlistId);
+                        });
+                    });
+                });
+            });
+
+            function reportSuccess(userId, playlistId) {
+                status.innerHTML = 'Success! View your playlist '
+                                    + '<a href="https://open.spotify.com/user/' + userId 
+                                    + '/playlist/' + playlistId 
+                                    + '" target="_blank">here</a> or in the Spotify app.';
+            }
+        }
+    })();
 
 </script>
 </html>
