@@ -11,53 +11,90 @@
         <input id="artist">
         <input type="submit">
     </form>
+    <p id="status"></p>
     <div>
         <a id="link" target="_blank"></a>
     </div>
     <iframe id="player" width="250px" height="330px" frameborder="0" allowtransparency="true"></iframe>
 </body>
 <script>
-    function getPlaylist() {
-        var artist = document.getElementById('artist').value;
-        var artistQuery = encodeURIComponent(artist);
+    
+    function getPlaylist(access_token) {
+        getUsername(access_token);
+    }
 
-        var title = artist + ': recommended';
-
+    function getUsername(access_token) {
         var request = new XMLHttpRequest();
-        request.open('GET', 'http://developer.echonest.com/api/v4/playlist/static?api_key=ABFI7P4WHSMYRUEJ4&artist=' + artistQuery + '&format=json&results=20&type=artist-radio&bucket=id:spotify&bucket=tracks');
+        request.open('GET', 'https://api.spotify.com/v1/me');
+        request.setRequestHeader('Authorization', 'Bearer ' + access_token);
         request.addEventListener('load', function() {
-            var data = JSON.parse(request.responseText);
-            var songs = data.response.songs;
-            var spotifyIds = songs.map(function(song) {
-                var tracks = song.tracks;
-                if (tracks.length === 0) {
-                    return null;
-                } else {
-                    return tracks[0].foreign_id.substring(14);
-                }
-            });
-            var trackset = '';
-            spotifyIds.forEach(function(id, index) {
-                if (id) {
-                    trackset += id;
-                    if (index != this.length - 1) {
-                        trackset += ',';
-                    }
-                }
-            });
-            /*
-            var player = document.getElementById('player');
-            player.src = 'https://embed.spotify.com/?uri=spotify:trackset:' + title + ':' + trackset;
-
-            var link = document.getElementById('link');
-            link.href = 'http://open.spotify.com/trackset/' + title + '/' + trackset;
-            link.innerHTML = 'Click to view in a new tab';
-            */
+            var response = JSON.parse(this.responseText);
+            createPlaylist(access_token, response.id);
         });
         request.send();
     }
 
+    function createPlaylist(access_token, userId) {
+        var request = new XMLHttpRequest();
+        request.open('POST', 'https://api.spotify.com/v1/users/' + userId + '/playlists');
+        request.setRequestHeader('Authorization', 'Bearer ' + access_token);
+        request.setRequestHeader('Content-Type', 'application/json');
+        
+        request.addEventListener('load', function() {
+            var response = JSON.parse(this.responseText);
+            getSpotifyURIs(userId, response.id, access_token);
+        });
+        
+        var artistQuery = localStorage.getItem('artistQuery');
+        var body = JSON.stringify({
+            'name': artistQuery,
+            'public': false
+        });
+        request.send(body);
+        
     }
+
+    function getSpotifyURIs(userId, playlistId, access_token) {
+        var artistQuery = localStorage.getItem('artistQuery');
+
+        var request = new XMLHttpRequest();
+        request.open('GET', 'http://developer.echonest.com/api/v4/playlist/static?api_key=ABFI7P4WHSMYRUEJ4&artist=' + artistQuery + '&format=json&results=20&type=artist-radio&bucket=id:spotify&bucket=tracks');
+        request.addEventListener('load', function() {
+            var response = JSON.parse(request.responseText);
+            var songs = response.response.songs;
+            var spotifyURIs = songs.map(function(song) {
+                var tracks = song.tracks;
+                if (tracks.length === 0) {
+                    return null;
+                } else {
+                    return tracks[0].foreign_id;
+                }
+            });
+            spotifyURIs = spotifyURIs.filter(function(uri) {
+                return uri !== null;
+            });
+            addTracks(userId, playlistId, spotifyURIs, access_token);
+        });
+        request.send();
+    }
+
+    
+
+    function addTracks(userId, playlistId, spotifyURIs, access_token) {
+        var request = new XMLHttpRequest();
+        request.open('POST', 'https://api.spotify.com/v1/users/' + userId + '/playlists/' + playlistId + '/tracks');
+        request.setRequestHeader('Authorization', 'Bearer ' + access_token);
+        request.setRequestHeader('Content-Type', 'application/json');
+        request.addEventListener('load', function() {
+            var status = document.getElementById('status');
+            status.innerHTML = 'Success! Your playlist has been added. ' + '<a href="https://open.spotify.com/user/' + userId + '/playlist/' + playlistId +'" target="_blank">View here<a>';
+        });
+        var body = JSON.stringify({
+            'uris': spotifyURIs
+        })
+        request.send(body);
+    }
+
     (function() {
         function getHashParams() {
           var hashParams = {};
@@ -76,17 +113,22 @@
         //var storedState = localStorage.getItem(stateKey);
 
         if (access_token) {
-            getPlaylist();
+            var status = document.getElementById('status');
+            status.innerHTML = 'Creating your playlist...';
+            getPlaylist(access_token);
         }
             
     })();
 
     function authorizeUser() {
         event.preventDefault();
-        window.location = 'https://accounts.spotify.com/authorize?client_id=999d4ee5cddc4a53aa942ac43799a5f8&response_type=token&scope=playlist-modify-private&redirect_uri=http:%2F%2Flocalhost:8000';
-        }
+
+        var artist = document.getElementById('artist').value;
+        var artistQuery = encodeURIComponent(artist);
+        localStorage.setItem('artistQuery', artistQuery);
+
+        window.location = 'https://accounts.spotify.com/authorize?client_id=999d4ee5cddc4a53aa942ac43799a5f8&response_type=token&scope=playlist-modify-private&redirect_uri=' + window.location.origin + '&show_dialog=true';
     }
-        
-    
+
 </script>
 </html>
