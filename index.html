@@ -5,7 +5,7 @@
 </head>
 <body>
     <h1>Spotify Playlist Generator</h1>
-    <form onsubmit="authorizeUser()">
+    <form onsubmit="authorizeUser(event)">
         <label>Artist:</label>
         <input id="artist">
         <input type="submit">
@@ -14,7 +14,7 @@
 </body>
 <script>
 
-    function authorizeUser() {
+    function authorizeUser(event) {
         event.preventDefault();
 
         var artist = document.getElementById('artist').value;
