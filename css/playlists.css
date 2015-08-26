@@ -1,0 +1,29 @@
+#container {
+    padding: 13px;
+}
+
+#container > * {
+    margin-bottom: 13px;
+}
+
+#title {
+    font-size: 2em;
+    font-weight: bold;
+}
+
+input[type="radio"] {
+    display: none;
+}
+
+input[type="radio"] + label {
+    padding: 4px;
+    border: 1px solid transparent;
+}
+
+input[type="radio"]:checked + label {
+    border: 1px solid gray;
+}
+
+label {
+    cursor: pointer;
+}

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Spotify Playlist Generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/css/site.css">
+    <link rel="stylesheet" href="/css/playlists.css">
+</head>
+<body>
+    <div id="container">
+        <div id="title">
+            <span>Spotify Playlist Generator</span>
+        </div>
+        <div>
+            <span>Generate playlist based on:</span>
+        </div>
+        <form>
+            <input id="artist" type="radio" name="type" value="artist" checked>
+            <label for="artist">Artist</label>
+            <input id="genre" type="radio" name="type" value="genre">
+            <label for="genre">Genre</label>
+        </form>
+        <form onsubmit="authorizeUser(event)">
+            <label>Query:</label>
+            <input id="query" placeholder="bob dylan">
+            <input type="submit" value="Submit">
+        </form>
+        <div>
+            <span id="status"></span>
+        </div>
+        <div>
+            <a href="https://github.com/nicholasbien/playlists" style="margin-right: 15px">View Source on GitHub</a>
+            <a href="/">Home</a>
+        </div>
+    </div>
+</body>
+<script>
+    var radioButtons = document.getElementsByName('type');
+    for (var i = 0; i < radioButtons.length; i++) {
+        radioButtons[i].onclick = function(event) {
+        var type = document.querySelector('input[name="type"]:checked').value;
+        document.getElementById('query').placeholder = (type == 'artist') ? 'bob dylan' : 'acid jazz';
+        };
+    }
+</script>
+<script src="/js/playlists/spotify.js"></script>
+<script src="/js/playlists/echonest.js"></script>
+<script src="/js/playlists/script.js"></script>
+</html>
